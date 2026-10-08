@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="実技評価">
+<meta name="theme-color" content="#1f3a5f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>実技試験評価</title>
+<style>
+  :root {
+    --bg: #f3f5f8;
+    --card: #ffffff;
+    --ink: #1c2430;
+    --sub: #5b6676;
+    --line: #d7dde5;
+    --navy: #1f3a5f;
+    --ok: #1f8a4c;
+    --ok-bg: #e7f5ec;
+    --tri: #b7791f;
+    --tri-bg: #ffe8a3;
+    --tri-line: #d9a425;
+    --ng: #c53030;
+    --ng-bg: #fcd2d2;
+    --ng-line: #e06666;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+    -webkit-text-size-adjust: 100%; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  button { font: inherit; color: inherit; border: none; background: none; cursor: pointer; }
+  .hidden { display: none !important; }
+
+  /* ---------- 選択画面 ---------- */
+  #select { max-width: 760px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 32px) 20px 40px; }
+  #select h1 { font-size: 28px; margin: 0 0 6px; }
+  #select p.lead { color: var(--sub); margin: 0 0 28px; font-size: 17px; }
+  .sheet-btn { display: block; width: 100%; text-align: left; background: var(--card);
+    border: 2px solid var(--line); border-radius: 16px; padding: 22px 24px; margin-bottom: 16px; }
+  .sheet-btn:active { border-color: var(--navy); background: #eef3f9; }
+  .sheet-btn .s { font-size: 30px; font-weight: 700; color: var(--navy); }
+  .sheet-btn .t { font-size: 17px; color: var(--sub); margin-top: 4px; }
+  .sheet-btn .m { display: inline-block; margin-top: 10px; font-size: 15px; background: #eef3f9;
+    color: var(--navy); padding: 4px 12px; border-radius: 999px; }
+  .resume { background: var(--tri-bg); border: 2px solid var(--tri-line); border-radius: 16px;
+    padding: 18px 20px; margin-bottom: 24px; font-size: 17px; }
+  .resume b { display: block; margin-bottom: 10px; }
+
+  /* ---------- 評価画面ヘッダー ---------- */
+  header.bar { position: sticky; top: 0; z-index: 10; background: var(--navy); color: #fff;
+    padding: calc(env(safe-area-inset-top) + 10px) 16px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+  .bar-top { display: flex; align-items: center; gap: 12px; }
+  .bar-title { flex: 1; min-width: 0; font-size: 18px; font-weight: 700; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .bar-btn { background: rgba(255,255,255,.15); color: #fff; border-radius: 10px; padding: 10px 14px;
+    font-size: 16px; white-space: nowrap; }
+  .bar-btn.primary { background: #fff; color: var(--navy); font-weight: 700; }
+  .bar-stats { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .stat { background: rgba(255,255,255,.12); border-radius: 10px; padding: 6px 12px; font-size: 15px;
+    display: flex; align-items: baseline; gap: 6px; }
+  .stat b { font-size: 22px; }
+  .stat.timer { min-width: 150px; }
+  .stat.timer.warn { background: #f0c75e; color: #3a2a00; }
+  .stat.timer.over { background: #e53e3e; color: #fff; animation: blink 1s steps(2) infinite; }
+  .stat.tri b { color: #ffd66b; }
+  .stat.ng b { color: #ffb3b3; }
+  @keyframes blink { 50% { opacity: .55; } }
+  .start-btn { background: #ffd66b; color: #3a2a00; font-weight: 700; border-radius: 10px;
+    padding: 6px 16px; font-size: 17px; }
+
+  /* ---------- 項目 ---------- */
+  main { max-width: 1000px; margin: 0 auto; padding: 12px 12px 120px; }
+  .major { margin: 22px 4px 8px; font-size: 20px; font-weight: 700; color: var(--navy);
+    border-left: 6px solid var(--navy); padding-left: 10px; }
+  .minor { margin: 14px 4px 6px; font-size: 16px; font-weight: 700; color: var(--sub); }
+  .minor .tag { display: inline-block; background: #e2e8f0; color: var(--navy); border-radius: 6px;
+    padding: 1px 8px; font-size: 13px; margin-left: 6px; vertical-align: 1px; }
+  .item { background: var(--card); border: 2px solid var(--line); border-radius: 12px;
+    margin-bottom: 8px; padding: 10px 12px; transition: background .15s, border-color .15s; }
+  .item.o { border-color: #a9d8bb; }
+  .item.t { background: var(--tri-bg); border-color: var(--tri-line); }
+  .item.x { background: var(--ng-bg); border-color: var(--ng-line); }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .no { flex: none; min-width: 44px; text-align: center; font-weight: 700; font-size: 17px; color: var(--sub); }
+  .no small { display: block; font-size: 11px; font-weight: 700; color: var(--navy); }
+  .txt { flex: 1; min-width: 0; font-size: 18px; line-height: 1.45; }
+  .pts { flex: none; font-size: 14px; color: var(--sub); background: #eef1f5; border-radius: 6px;
+    padding: 3px 8px; white-space: nowrap; }
+  .pts.big { background: var(--ng-bg); color: var(--ng); font-weight: 700; }
+  .marks { flex: none; display: flex; gap: 6px; }
+  .mk { width: 58px; height: 52px; border-radius: 10px; border: 2px solid var(--line); background: #fff;
+    font-size: 26px; font-weight: 700; color: #9aa5b4; }
+  .mk.on.o { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .mk.on.t { background: var(--tri); border-color: var(--tri); color: #fff; }
+  .mk.on.x { background: var(--ng); border-color: var(--ng); color: #fff; }
+  .memo-btn { flex: none; width: 52px; height: 52px; border-radius: 10px; border: 2px solid var(--line);
+    background: #fff; font-size: 13px; color: var(--sub); line-height: 1.1; }
+  .memo-btn.has { border-color: var(--navy); color: var(--navy); font-weight: 700; background: #eef3f9; }
+  .memo { margin: 10px 0 2px 54px; }
+  .memo textarea { width: 100%; min-height: 64px; font: inherit; font-size: 17px; padding: 8px 10px;
+    border: 2px solid var(--line); border-radius: 10px; resize: vertical; background: #fff; }
+  .memo-view { margin: 6px 0 0 54px; font-size: 15px; color: var(--ink); background: rgba(255,255,255,.7);
+    border-radius: 8px; padding: 4px 10px; white-space: pre-wrap; }
+  .note { margin: 18px 4px; font-size: 15px; color: var(--sub); }
+
+  @media (max-width: 700px) {
+    .row { flex-wrap: wrap; }
+    .txt { flex-basis: calc(100% - 60px); }
+    .pts { margin-left: 54px; }
+    .marks { margin-left: auto; }
+    .memo, .memo-view { margin-left: 0; }
+  }
+
+  /* ---------- 結果画面 ---------- */
+  #result main { max-width: 860px; }
+  .sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 16px 0; }
+  .sum div { background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .sum span { display: block; font-size: 14px; color: var(--sub); }
+  .sum b { font-size: 30px; }
+  .sum .ng { border-color: var(--ng-line); background: var(--ng-bg); }
+  .sum .ng b { color: var(--ng); }
+  .sum .tri { border-color: var(--tri-line); background: var(--tri-bg); }
+  .sum .tri b { color: var(--tri); }
+  .r-h { margin: 26px 4px 8px; font-size: 20px; font-weight: 700; }
+  .r-h.ng { color: var(--ng); } .r-h.tri { color: var(--tri); } .r-h.un { color: var(--sub); }
+  .r-item { background: var(--card); border-radius: 10px; padding: 10px 14px; margin-bottom: 6px;
+    border-left: 6px solid var(--line); font-size: 17px; }
+  .r-item.ng { border-left-color: var(--ng); } .r-item.tri { border-left-color: var(--tri); }
+  .r-item .where { font-size: 13px; color: var(--sub); }
+  .r-item .c { margin-top: 4px; font-size: 16px; background: #f6f7f9; border-radius: 6px; padding: 4px 8px; white-space: pre-wrap; }
+  .empty { color: var(--sub); margin: 4px; }
+  .r-actions { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
+  .big-btn { flex: 1; min-width: 220px; padding: 18px; border-radius: 14px; font-size: 19px; font-weight: 700;
+    background: #fff; border: 2px solid var(--line); }
+  .big-btn.primary { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+  /* ---------- ダイアログ ---------- */
+  .dlg-wrap { position: fixed; inset: 0; background: rgba(15,23,35,.45); z-index: 50;
+    display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .dlg { background: #fff; border-radius: 18px; max-width: 480px; width: 100%; padding: 24px; }
+  .dlg h2 { margin: 0 0 8px; font-size: 21px; }
+  .dlg p { margin: 0 0 18px; font-size: 17px; color: var(--sub); line-height: 1.6; }
+  .dlg .btns { display: flex; flex-direction: column; gap: 10px; }
+  .dlg .btns button { padding: 15px; border-radius: 12px; font-size: 18px; border: 2px solid var(--line); background: #fff; }
+  .dlg .btns .primary { background: var(--navy); color: #fff; border-color: var(--navy); font-weight: 700; }
+  .dlg .btns .danger { background: var(--ng); color: #fff; border-color: var(--ng); font-weight: 700; }
+
+  .toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 120px); transform: translateX(-50%);
+    background: #e53e3e; color: #fff; font-size: 22px; font-weight: 700; padding: 14px 26px; border-radius: 14px;
+    z-index: 40; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+
+  /* ---------- パスコード画面 ---------- */
+  #lock { max-width: 520px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 60px) 20px 40px; }
+  #lock h1 { font-size: 28px; margin: 0 0 8px; }
+  #lock p { color: var(--sub); font-size: 17px; line-height: 1.6; margin: 0 0 20px; }
+  #lock input { width: 100%; font-size: 22px; padding: 14px 16px; border: 2px solid var(--line);
+    border-radius: 12px; background: #fff; margin-bottom: 14px; }
+  #lock .big-btn { width: 100%; }
+  #lockMsg { min-height: 1.6em; color: var(--ng); font-weight: 700; margin-top: 12px; font-size: 17px; }
+  .lock-link { display: block; margin: 36px auto 0; color: var(--sub); font-size: 15px; text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<!-- パスコード画面 -->
+<section id="lock" class="hidden">
+  <h1>実技試験 評価</h1>
+  <p>パスコードを入力してください。<br>一度入力すると、このiPadでは次回から入力不要です。</p>
+  <form id="lockForm" autocomplete="off">
+    <input type="password" id="passIn" placeholder="パスコード" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <button class="big-btn primary" type="submit">開く</button>
+  </form>
+  <div id="lockMsg"></div>
+</section>
+
+<!-- 選択画面 -->
+<section id="select" class="hidden">
+  <h1>実技試験 評価</h1>
+  <p class="lead">評価表を選んでください</p>
+  <div id="resumeBox"></div>
+  <div id="sheetList"></div>
+  <button class="lock-link" id="forgetBtn">このiPadのパスコードを消す（ロックする）</button>
+</section>
+
+<!-- 評価画面 -->
+<section id="eval" class="hidden">
+  <header class="bar">
+    <div class="bar-top">
+      <button class="bar-btn" id="backBtn">‹ 選択へ</button>
+      <div class="bar-title" id="evalTitle"></div>
+      <button class="bar-btn primary" id="finishBtn">評価終了</button>
+    </div>
+    <div class="bar-stats">
+      <div class="stat timer" id="timerBox"></div>
+      <div class="stat">減点 <b id="stDed">0</b></div>
+      <div class="stat tri">△ <b id="stTri">0</b></div>
+      <div class="stat ng">× <b id="stNg">0</b></div>
+      <div class="stat">未入力 <b id="stUn">0</b></div>
+    </div>
+  </header>
+  <main id="items"></main>
+</section>
+
+<!-- 結果画面 -->
+<section id="result" class="hidden">
+  <header class="bar">
+    <div class="bar-top">
+      <div class="bar-title" id="resTitle"></div>
+    </div>
+  </header>
+  <main id="resBody"></main>
+</section>
+
+<div id="dlg"></div>
+
+<script src="sheets.enc.js"></script>
+<script>
+(function () {
+  "use strict";
+  var KEY = "jitsugi-current-v1";
+  var MARK = { o: "○", t: "△", x: "×" };
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- 評価表の展開 ----------
+  function flatten(sheet) {
+    var list = [];
+    sheet.sections.forEach(function (sec, si) {
+      sec.items.forEach(function (it, ii) {
+        list.push({
+          key: si + "-" + ii, no: it[0], text: it[1], pts: it[2],
+          part: sec.part || "本表", major: sec.major, minor: sec.minor, si: si
+        });
+      });
+    });
+    return list;
+  }
+  function findSheet(id) {
+    for (var i = 0; i < SHEETS.length; i++) if (SHEETS[i].id === id) return SHEETS[i];
+    return null;
+  }
+  function label(it) { return (it.part === "別紙" ? "別紙" : "") + it.no; }
+  function ptsText(p) { return p >= 21 ? "−21" : p + "点"; }
+
+  // ---------- 状態(評価中の1人分だけを保存) ----------
+  var st = null;
+  function save() { try { if (st) localStorage.setItem(KEY, JSON.stringify(st)); else localStorage.removeItem(KEY); } catch (e) {} }
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { return null; } }
+
+  // ---------- 画面切替 ----------
+  function show(name) {
+    ["lock", "select", "eval", "result"].forEach(function (n) { $(n).classList.toggle("hidden", n !== name); });
+    window.scrollTo(0, 0);
+    if (st && name !== "lock") { st.screen = name; save(); }
+  }
+
+  // ---------- 選択画面 ----------
+  function renderSelect() {
+    var saved = load();
+    var rb = $("resumeBox");
+    rb.innerHTML = "";
+    if (saved && findSheet(saved.sheetId)) {
+      var sh = findSheet(saved.sheetId);
+      var n = Object.keys(saved.marks || {}).length;
+      rb.innerHTML = '<div class="resume"><b>評価途中のデータがあります（' + esc(sh.short) + '・' + n + '項目入力済み）</b>' +
+        '<div class="r-actions" style="margin-top:0">' +
+        '<button class="big-btn primary" id="resumeBtn">続きから再開</button>' +
+        '<button class="big-btn" id="discardBtn">破棄する</button></div></div>';
+      $("resumeBtn").onclick = function () { st = saved; openEval(); if (st.screen === "result") showResult(); };
+      $("discardBtn").onclick = function () {
+        confirmDlg("評価途中のデータを消しますか？", "", [
+          { t: "消す", c: "danger", f: function () { st = null; save(); renderSelect(); } },
+          { t: "やめる" }]);
+      };
+    }
+    var html = "";
+    SHEETS.forEach(function (sh) {
+      var n = flatten(sh).length;
+      html += '<button class="sheet-btn" data-id="' + sh.id + '"><div class="s">' + esc(sh.short) + '</div>' +
+        '<div class="t">' + esc(sh.title) + '</div><span class="m">制限時間 ' + sh.minutes + '分　／　' + n + '項目</span></button>';
+    });
+    $("sheetList").innerHTML = html;
+    Array.prototype.forEach.call(document.querySelectorAll(".sheet-btn"), function (b) {
+      b.onclick = function () {
+        var start = function () {
+          st = { sheetId: b.getAttribute("data-id"), marks: {}, comments: {}, startAt: null, endAt: null, screen: "eval" };
+          save(); openEval();
+        };
+        if (load()) confirmDlg("評価途中のデータを消して、新しく始めますか？", "", [
+          { t: "新しく始める", c: "danger", f: start }, { t: "やめる" }]);
+        else start();
+      };
+    });
+  }
+
+  // ---------- 評価画面 ----------
+  var sheet, items, timerId = null, alerted = false, openMemo = null;
+
+  function openEval() {
+    sheet = findSheet(st.sheetId);
+    items = flatten(sheet);
+    alerted = false;
+    $("evalTitle").textContent = sheet.short + "　" + sheet.title;
+    renderItems();
+    updateStats();
+    startTicker();
+    show("eval");
+  }
+
+  function renderItems() {
+    var html = "", lastMajor = null, lastSi = null;
+    items.forEach(function (it) {
+      if (it.major !== lastMajor) { html += '<div class="major">' + esc(it.major) + '</div>'; lastMajor = it.major; }
+      if (it.si !== lastSi) {
+        if (it.minor) html += '<div class="minor">' + esc(it.minor.replace("（別紙）", "")) +
+          (it.part === "別紙" ? '<span class="tag">別紙</span>' : "") + '</div>';
+        lastSi = it.si;
+      }
+      html += '<div class="item" id="it-' + it.key + '">' + itemInner(it) + '</div>';
+    });
+    if (sheet.note) html += '<div class="note">※ ' + esc(sheet.note) + '</div>';
+    $("items").innerHTML = html;
+  }
+
+  function itemInner(it) {
+    var m = st.marks[it.key] || "";
+    var c = st.comments[it.key] || "";
+    var h = '<div class="row">' +
+      '<div class="no">' + (it.part === "別紙" ? "<small>別紙</small>" : "") + it.no + '</div>' +
+      '<div class="txt">' + esc(it.text) + '</div>' +
+      '<div class="pts' + (it.pts >= 21 ? " big" : "") + '">' + ptsText(it.pts) + '</div>' +
+      '<div class="marks">';
+    ["o", "t", "x"].forEach(function (k) {
+      h += '<button class="mk ' + k + (m === k ? " on" : "") + '" data-k="' + it.key + '" data-m="' + k + '">' + MARK[k] + '</button>';
+    });
+    h += '</div><button class="memo-btn' + (c ? " has" : "") + '" data-memo="' + it.key + '">' + (c ? "メモ<br>あり" : "メモ") + '</button></div>';
+    if (openMemo === it.key) {
+      h += '<div class="memo"><textarea data-ta="' + it.key + '" placeholder="コメントを入力">' + esc(c) + '</textarea></div>';
+    } else if (c) {
+      h += '<div class="memo-view">' + esc(c) + '</div>';
+    }
+    return h;
+  }
+
+  function refreshItem(key) {
+    var it = items.filter(function (x) { return x.key === key; })[0];
+    var el = $("it-" + key);
+    var m = st.marks[key] || "";
+    el.className = "item" + (m ? " " + m : "");
+    el.innerHTML = itemInner(it);
+  }
+
+  $("items").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.m) {
+      var k = b.dataset.k;
+      if (st.marks[k] === b.dataset.m) delete st.marks[k]; else st.marks[k] = b.dataset.m;
+      save(); refreshItem(k); updateStats();
+    } else if (b.dataset.memo) {
+      var key = b.dataset.memo, prev = openMemo;
+      openMemo = (openMemo === key) ? null : key;
+      if (prev && prev !== key) refreshItem(prev);
+      refreshItem(key);
+      if (openMemo) { var ta = document.querySelector('[data-ta="' + key + '"]'); if (ta) ta.focus(); }
+    }
+  });
+  $("items").addEventListener("input", function (e) {
+    var k = e.target.dataset.ta;
+    if (!k) return;
+    var v = e.target.value;
+    if (v.trim()) st.comments[k] = v; else delete st.comments[k];
+    save();
+    var mb = document.querySelector('[data-memo="' + k + '"]');
+    if (mb) { mb.classList.toggle("has", !!v.trim()); mb.innerHTML = v.trim() ? "メモ<br>あり" : "メモ"; }
+  });
+
+  function tally() {
+    var r = { ded: 0, dedMain: 0, dedSub: 0, tri: 0, ng: 0, un: 0, hasSub: false };
+    items.forEach(function (it) {
+      var m = st.marks[it.key];
+      if (it.part === "別紙") r.hasSub = true;
+      if (m === "x") { r.ng++; r.ded += it.pts; if (it.part === "別紙") r.dedSub += it.pts; else r.dedMain += it.pts; }
+      else if (m === "t") r.tri++;
+      else if (!m) r.un++;
+    });
+    return r;
+  }
+  function updateStats() {
+    var r = tally();
+    $("stDed").textContent = r.ded;
+    $("stTri").textContent = r.tri;
+    $("stNg").textContent = r.ng;
+    $("stUn").textContent = r.un;
+  }
+
+  // ---------- タイマー ----------
+  function fmt(sec) {
+    var s = Math.abs(Math.floor(sec));
+    return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2);
+  }
+  function startTicker() { if (timerId) clearInterval(timerId); tick(); timerId = setInterval(tick, 500); }
+  function tick() {
+    var box = $("timerBox");
+    var limit = sheet.minutes * 60;
+    if (!st.startAt) {
+      box.className = "stat timer";
+      box.innerHTML = '<button class="start-btn" id="startBtn">▶ 接触・開始</button><span>' + sheet.minutes + '分</span>';
+      $("startBtn").onclick = function () { unlockAudio(); st.startAt = Date.now(); save(); requestWake(); tick(); };
+      return;
+    }
+    var end = st.endAt || Date.now();
+    var remain = limit - (end - st.startAt) / 1000;
+    if (remain > 0) {
+      box.className = "stat timer" + (remain <= 60 ? " warn" : "");
+      box.innerHTML = '残り <b>' + fmt(remain) + '</b>';
+    } else {
+      box.className = "stat timer over";
+      box.innerHTML = '時間終了 <b>+' + fmt(-remain) + '</b>';
+      if (!alerted && !st.endAt) {
+        alerted = true;
+        if (-remain < 5) { beep(); toast(sheet.minutes + "分経過　終了です"); }
+      }
+    }
+  }
+
+  var actx = null;
+  function unlockAudio() {
+    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch (e) {}
+  }
+  function beep() {
+    if (!actx) return;
+    try {
+      [0, 0.35, 0.7].forEach(function (t) {
+        var o = actx.createOscillator(), g = actx.createGain();
+        o.frequency.value = 880; o.connect(g); g.connect(actx.destination);
+        g.gain.setValueAtTime(0.3, actx.currentTime + t);
+        g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + t + 0.3);
+        o.start(actx.currentTime + t); o.stop(actx.currentTime + t + 0.3);
+      });
+    } catch (e) {}
+  }
+  function toast(msg) {
+    var d = document.createElement("div");
+    d.className = "toast"; d.textContent = msg;
+    document.body.appendChild(d);
+    setTimeout(function () { d.remove(); }, 4000);
+  }
+  var wakeLock = null;
+  function requestWake() {
+    try { if (navigator.wakeLock) navigator.wakeLock.request("screen").then(function (w) { wakeLock = w; }).catch(function () {}); } catch (e) {}
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && st && st.startAt && !st.endAt) requestWake();
+  });
+
+  $("backBtn").onclick = function () {
+    if (timerId) clearInterval(timerId);
+    renderSelect(); show("select");
+  };
+
+  $("finishBtn").onclick = function () {
+    var r = tally();
+    if (r.un > 0) {
+      confirmDlg("未入力が " + r.un + " 項目あります",
+        "評価表では「未実施項目は減点」となっています。未入力の項目をどう扱いますか？", [
+          { t: "未入力をすべて × にする", c: "danger", f: function () {
+              items.forEach(function (it) { if (!st.marks[it.key]) st.marks[it.key] = "x"; });
+              finish(); } },
+          { t: "未入力のまま結果を見る", f: finish },
+          { t: "評価に戻る" }]);
+    } else finish();
+  };
+  function finish() {
+    if (st.startAt && !st.endAt) st.endAt = Date.now();
+    openMemo = null;
+    save(); showResult();
+  }
+
+  // ---------- 結果画面 ----------
+  function showResult() {
+    if (!sheet || sheet.id !== st.sheetId) { sheet = findSheet(st.sheetId); items = flatten(sheet); }
+    if (timerId) clearInterval(timerId);
+    var r = tally();
+    $("resTitle").textContent = "結果　" + sheet.short + "　" + sheet.title;
+    var h = '<div class="sum">';
+    h += '<div class="ng"><span>減点 合計</span><b>' + r.ded + '</b></div>';
+    if (r.hasSub) h += '<div><span>本表 / 別紙</span><b style="font-size:24px">' + r.dedMain + ' / ' + r.dedSub + '</b></div>';
+    h += '<div class="ng"><span>× の数</span><b>' + r.ng + '</b></div>';
+    h += '<div class="tri"><span>△ の数</span><b>' + r.tri + '</b></div>';
+    if (r.un) h += '<div><span>未入力</span><b>' + r.un + '</b></div>';
+    if (st.startAt) h += '<div><span>所要時間</span><b style="font-size:24px">' + fmt(((st.endAt || Date.now()) - st.startAt) / 1000) + '</b></div>';
+    h += '</div>';
+
+    h += listBlock("x", "× の項目", "ng");
+    h += listBlock("t", "△ の項目（目印・減点なし）", "tri");
+    if (r.un) h += listBlock("", "未入力の項目", "un");
+    var oc = items.filter(function (it) { return st.marks[it.key] === "o" && st.comments[it.key]; });
+    if (oc.length) h += listBlock("o", "○ の項目のメモ", "");
+
+    h += '<div class="r-actions"><button class="big-btn" id="reEdit">評価に戻って直す</button>' +
+         '<button class="big-btn primary" id="nextBtn">次の受験者へ（消去）</button></div>';
+    $("resBody").innerHTML = h;
+    $("reEdit").onclick = function () { st.endAt = null; save(); openEval(); };
+    $("nextBtn").onclick = function () {
+      confirmDlg("この評価を消して、次の受験者に進みますか？", "消した内容は元に戻せません。", [
+        { t: "消して次へ", c: "primary", f: function () { st = null; save(); renderSelect(); show("select"); } },
+        { t: "やめる" }]);
+    };
+    show("result");
+  }
+  function listBlock(m, title, cls) {
+    var list = items.filter(function (it) {
+      var mk = st.marks[it.key] || "";
+      if (m === "o") return mk === "o" && st.comments[it.key];
+      return mk === m;
+    });
+    var h = '<div class="r-h ' + cls + '">' + title + '（' + list.length + '）</div>';
+    if (!list.length) return h + '<div class="empty">なし</div>';
+    list.forEach(function (it) {
+      var c = st.comments[it.key];
+      h += '<div class="r-item ' + cls + '"><div class="where">' + esc(it.major + (it.minor ? "／" + it.minor : "")) + '</div>' +
+        '<b>' + label(it) + '</b>　' + esc(it.text) + (m === "x" ? '　<span style="color:var(--ng);font-weight:700">' + ptsText(it.pts) + '</span>' : "") +
+        (c ? '<div class="c">' + esc(c) + '</div>' : "") + '</div>';
+    });
+    return h;
+  }
+
+  // ---------- ダイアログ ----------
+  function confirmDlg(title, msg, btns) {
+    var w = document.createElement("div");
+    w.className = "dlg-wrap";
+    var h = '<div class="dlg"><h2>' + esc(title) + '</h2>' + (msg ? '<p>' + esc(msg) + '</p>' : '<p></p>') + '<div class="btns">';
+    btns.forEach(function (b, i) { h += '<button data-i="' + i + '" class="' + (b.c || "") + '">' + esc(b.t) + '</button>'; });
+    w.innerHTML = h + '</div></div>';
+    w.addEventListener("click", function (e) {
+      var b = e.target.closest("button");
+      if (!b && e.target !== w) return;
+      w.remove();
+      if (b) { var f = btns[+b.dataset.i].f; if (f) f(); }
+    });
+    $("dlg").appendChild(w);
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // ---------- パスコードと復号 ----------
+  var PASS_KEY = "jitsugi-pass-v1";
+  function b64(s) { var b = atob(s), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+  function decrypt(pass) {
+    var e = window.SHEETS_ENC, sub = crypto.subtle;
+    return sub.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"])
+      .then(function (base) {
+        return sub.deriveKey({ name: "PBKDF2", salt: b64(e.salt), iterations: e.iter, hash: "SHA-256" },
+          base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+      })
+      .then(function (key) { return sub.decrypt({ name: "AES-GCM", iv: b64(e.iv) }, key, b64(e.data)); })
+      .then(function (buf) { return JSON.parse(new TextDecoder().decode(buf)); });
+  }
+  function getPass() { try { return localStorage.getItem(PASS_KEY); } catch (e) { return null; } }
+  function setPass(p) { try { if (p) localStorage.setItem(PASS_KEY, p); else localStorage.removeItem(PASS_KEY); } catch (e) {} }
+
+  function unlocked(sheets) {
+    window.SHEETS = sheets;
+    renderSelect();
+    show("select");
+  }
+  function showLock(msg) {
+    $("lockMsg").textContent = msg || "";
+    $("passIn").value = "";
+    show("lock");
+  }
+  $("lockForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var p = $("passIn").value;
+    if (!p) return;
+    $("lockMsg").textContent = "確認中…";
+    decrypt(p).then(function (sheets) { setPass(p); $("passIn").blur(); unlocked(sheets); })
+      .catch(function () { $("lockMsg").textContent = "パスコードが違います"; });
+  });
+  $("forgetBtn").onclick = function () {
+    confirmDlg("このiPadのパスコードを消しますか？", "次に開くときに、パスコードの入力が必要になります。", [
+      { t: "消してロックする", c: "danger", f: function () { setPass(null); window.SHEETS = []; showLock(""); } },
+      { t: "やめる" }]);
+  };
+
+  // ---------- 起動 ----------
+  window.SHEETS = [];
+  if (!window.SHEETS_ENC || !(window.crypto && crypto.subtle)) {
+    showLock("評価表のデータを読み込めません。ネットのある場所で開き直してください。");
+  } else {
+    var saved = getPass();
+    if (saved) {
+      decrypt(saved).then(unlocked).catch(function () {
+        setPass(null);
+        showLock("評価表が更新されたか、パスコードが変わりました。もう一度入力してください。");
+      });
+    } else showLock("");
+  }
+
+  if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>
