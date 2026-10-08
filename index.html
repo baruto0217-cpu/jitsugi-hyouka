@@ -66,7 +66,12 @@
   .stat b { font-size: 22px; }
   .stat.timer { min-width: 150px; }
   .stat.timer.warn { background: #f0c75e; color: #3a2a00; }
-  .stat.timer.over { background: #e53e3e; color: #fff; animation: blink 1s steps(2) infinite; }
+  .stat.timer.over { background: #e53e3e; color: #fff; }
+  .stat.timer { align-items: center; }
+  .stat.timer .goal { font-size: 14px; opacity: .8; }
+  .stat.timer.paused #swTime { opacity: .6; }
+  .sw-btn { background: rgba(255,255,255,.2); color: inherit; border-radius: 8px; padding: 6px 12px; font-size: 15px; margin-left: 4px; }
+  .sw-btn.go { background: #ffd66b; color: #3a2a00; font-weight: 700; }
   .stat.tri b { color: #ffd66b; }
   .stat.ng b { color: #ffb3b3; }
   @keyframes blink { 50% { opacity: .55; } }
@@ -281,13 +286,13 @@
     SHEETS.forEach(function (sh) {
       var n = flatten(sh).length;
       html += '<button class="sheet-btn" data-id="' + sh.id + '"><div class="s">' + esc(sh.short) + '</div>' +
-        '<div class="t">' + esc(sh.title) + '</div><span class="m">制限時間 ' + sh.minutes + '分　／　' + n + '項目</span></button>';
+        '<div class="t">' + esc(sh.title) + '</div><span class="m">目安 ' + sh.minutes + '分　／　' + n + '項目</span></button>';
     });
     $("sheetList").innerHTML = html;
     Array.prototype.forEach.call(document.querySelectorAll(".sheet-btn"), function (b) {
       b.onclick = function () {
         var start = function () {
-          st = { sheetId: b.getAttribute("data-id"), marks: {}, comments: {}, startAt: null, endAt: null, screen: "eval" };
+          st = { sheetId: b.getAttribute("data-id"), marks: {}, comments: {}, sw: { acc: 0, run: null, warned: false }, screen: "eval" };
           save(); openEval();
         };
         if (load()) confirmDlg("評価途中のデータを消して、新しく始めますか？", "", [
@@ -298,12 +303,11 @@
   }
 
   // ---------- 評価画面 ----------
-  var sheet, items, timerId = null, alerted = false, openMemo = null;
+  var sheet, items, timerId = null, openMemo = null;
 
   function openEval() {
     sheet = findSheet(st.sheetId);
     items = flatten(sheet);
-    alerted = false;
     $("evalTitle").textContent = sheet.short + "　" + sheet.title;
     renderItems();
     updateStats();
@@ -398,52 +402,63 @@
     $("stUn").textContent = r.un;
   }
 
-  // ---------- タイマー ----------
+  // ---------- ストップウォッチ ----------
+  // st.sw = { acc: 止めるまでに数えたミリ秒, run: 動いている場合は動き始めた時刻, warned: 目安超過を知らせ済みか }
   function fmt(sec) {
     var s = Math.abs(Math.floor(sec));
     return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2);
   }
-  function startTicker() { if (timerId) clearInterval(timerId); tick(); timerId = setInterval(tick, 500); }
-  function tick() {
-    var box = $("timerBox");
-    var limit = sheet.minutes * 60;
-    if (!st.startAt) {
-      box.className = "stat timer";
-      box.innerHTML = '<button class="start-btn" id="startBtn">▶ 接触・開始</button><span>' + sheet.minutes + '分</span>';
-      $("startBtn").onclick = function () { unlockAudio(); st.startAt = Date.now(); save(); requestWake(); tick(); };
-      return;
+  function sw() {
+    if (!st.sw) {
+      // 旧版(カウントダウン)の途中データからの引き継ぎ
+      st.sw = { acc: 0, run: null, warned: false };
+      if (st.startAt) { if (st.endAt) st.sw.acc = st.endAt - st.startAt; else st.sw.run = st.startAt; }
+      delete st.startAt; delete st.endAt;
     }
-    var end = st.endAt || Date.now();
-    var remain = limit - (end - st.startAt) / 1000;
-    if (remain > 0) {
-      box.className = "stat timer" + (remain <= 60 ? " warn" : "");
-      box.innerHTML = '残り <b>' + fmt(remain) + '</b>';
-    } else {
-      box.className = "stat timer over";
-      box.innerHTML = '時間終了 <b>+' + fmt(-remain) + '</b>';
-      if (!alerted && !st.endAt) {
-        alerted = true;
-        if (-remain < 5) { beep(); toast(sheet.minutes + "分経過　終了です"); }
-      }
-    }
+    return st.sw;
   }
+  function elapsed() { var w = sw(); return (w.acc + (w.run ? Date.now() - w.run : 0)) / 1000; }
+  function swStart() { var w = sw(); if (!w.run) { w.run = Date.now(); save(); requestWake(); } renderTimer(); }
+  function swPause() { var w = sw(); if (w.run) { w.acc += Date.now() - w.run; w.run = null; save(); } renderTimer(); }
+  function swReset() { st.sw = { acc: 0, run: null, warned: false }; save(); renderTimer(); }
 
-  var actx = null;
-  function unlockAudio() {
-    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch (e) {}
+  function startTicker() { if (timerId) clearInterval(timerId); renderTimer(); timerId = setInterval(tick, 500); }
+  // ボタンは状態が変わったときだけ作り直し、時間の文字だけを毎回更新する
+  function renderTimer() {
+    var w = sw(), box = $("timerBox"), h;
+    var goal = '<span class="goal">/ 目安' + sheet.minutes + ':00</span>';
+    if (!w.run && !w.acc) {
+      h = '<button class="start-btn" data-sw="start">▶ 開始</button>' + goal;
+    } else {
+      h = '<b id="swTime"></b>' + goal +
+        (w.run ? '<button class="sw-btn" data-sw="pause">⏸ 停止</button>'
+               : '<button class="sw-btn go" data-sw="start">▶ 再開</button>') +
+        '<button class="sw-btn" data-sw="reset">リセット</button>';
+    }
+    box.innerHTML = h;
+    tick();
   }
-  function beep() {
-    if (!actx) return;
-    try {
-      [0, 0.35, 0.7].forEach(function (t) {
-        var o = actx.createOscillator(), g = actx.createGain();
-        o.frequency.value = 880; o.connect(g); g.connect(actx.destination);
-        g.gain.setValueAtTime(0.3, actx.currentTime + t);
-        g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + t + 0.3);
-        o.start(actx.currentTime + t); o.stop(actx.currentTime + t + 0.3);
-      });
-    } catch (e) {}
+  function tick() {
+    var w = sw(), box = $("timerBox"), t = elapsed(), goal = sheet.minutes * 60;
+    var el = $("swTime");
+    if (el) el.textContent = fmt(t);
+    box.className = "stat timer" + (!w.run && w.acc ? " paused" : "") +
+      (t >= goal ? " over" : (t >= goal - 60 && (w.run || w.acc) ? " warn" : ""));
+    if (w.run && t >= goal && !w.warned) {
+      w.warned = true; save();
+      toast("目安の" + sheet.minutes + "分を過ぎました");
+    }
   }
+  $("timerBox").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-sw]");
+    if (!b) return;
+    var a = b.dataset.sw;
+    if (a === "start") swStart();
+    else if (a === "pause") swPause();
+    else if (a === "reset") confirmDlg("ストップウォッチを 0:00 に戻しますか？", "", [
+      { t: "0:00に戻す", c: "danger", f: swReset }, { t: "やめる" }]);
+  });
+
   function toast(msg) {
     var d = document.createElement("div");
     d.className = "toast"; d.textContent = msg;
@@ -455,7 +470,7 @@
     try { if (navigator.wakeLock) navigator.wakeLock.request("screen").then(function (w) { wakeLock = w; }).catch(function () {}); } catch (e) {}
   }
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible" && st && st.startAt && !st.endAt) requestWake();
+    if (document.visibilityState === "visible" && st && st.sw && st.sw.run) requestWake();
   });
 
   $("backBtn").onclick = function () {
@@ -476,9 +491,9 @@
     } else finish();
   };
   function finish() {
-    if (st.startAt && !st.endAt) st.endAt = Date.now();
     openMemo = null;
-    save(); showResult();
+    swPause();
+    showResult();
   }
 
   // ---------- 結果画面 ----------
@@ -493,7 +508,8 @@
     h += '<div class="ng"><span>× の数</span><b>' + r.ng + '</b></div>';
     h += '<div class="tri"><span>△ の数</span><b>' + r.tri + '</b></div>';
     if (r.un) h += '<div><span>未入力</span><b>' + r.un + '</b></div>';
-    if (st.startAt) h += '<div><span>所要時間</span><b style="font-size:24px">' + fmt(((st.endAt || Date.now()) - st.startAt) / 1000) + '</b></div>';
+    var t = elapsed();
+    if (t > 0) h += '<div' + (t >= sheet.minutes * 60 ? ' class="ng"' : '') + '><span>所要時間（目安' + sheet.minutes + '分）</span><b style="font-size:24px">' + fmt(t) + '</b></div>';
     h += '</div>';
 
     h += listBlock("x", "× の項目", "ng");
@@ -505,7 +521,7 @@
     h += '<div class="r-actions"><button class="big-btn" id="reEdit">評価に戻って直す</button>' +
          '<button class="big-btn primary" id="nextBtn">次の受験者へ（消去）</button></div>';
     $("resBody").innerHTML = h;
-    $("reEdit").onclick = function () { st.endAt = null; save(); openEval(); };
+    $("reEdit").onclick = function () { openEval(); };
     $("nextBtn").onclick = function () {
       confirmDlg("この評価を消して、次の受験者に進みますか？", "消した内容は元に戻せません。", [
         { t: "消して次へ", c: "primary", f: function () { st = null; save(); renderSelect(); show("select"); } },

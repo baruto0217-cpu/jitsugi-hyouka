@@ -1,5 +1,5 @@
 // オフライン用キャッシュ。画面(index.html)を直したら、この数字を1つ上げる。評価表の更新時はencrypt.pyが自動で上げる。
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const CACHE = "jitsugi-v" + CACHE_VERSION;
 const FILES = ["./", "./index.html", "./sheets.enc.js", "./manifest.webmanifest", "./icon-180.png", "./icon-512.png"];
 
